@@ -5,6 +5,7 @@ import os
 import json
 import tensorflow as tf
 import numpy as np
+import keras
 
 
 def compute_square_norm(input, axis=None):
@@ -133,33 +134,18 @@ def squash(input):
 
 
 def load_mnist():
-  dataset_directory = "./MNIST"
+  (X_train, Y_train), (X_test, Y_test) = keras.datasets.mnist.load_data()
 
-  file = open(os.path.join(dataset_directory, 'train-images-idx3-ubyte'))
-  loaded = np.fromfile(file=file, dtype=np.uint8)
-  X_train = loaded[16:].reshape((60000, 28, 28, 1)).astype(np.float)
+  X_train = X_train.reshape(-1, 28, 28, 1).astype('float32') / 255.0
+  Y_train = keras.utils.to_categorical(Y_train.astype('float32'))
+  X_test = X_test.reshape(-1, 28, 28, 1).astype("float32") / 255.0
+  Y_test = keras.utils.to_categorical(Y_test.astype('float32'))
 
-  file = open(os.path.join(dataset_directory, 'train-labels-idx1-ubyte'))
-  loaded = np.fromfile(file=file, dtype=np.uint8)
-  Y_train = loaded[8:].reshape((60000)).astype(np.float)
-
-  file = open(os.path.join(dataset_directory, 't10k-images-idx3-ubyte'))
-  loaded = np.fromfile(file=file, dtype=np.uint8)
-  X_test = loaded[16:].reshape((10000, 28, 28, 1)).astype(np.float)
-
-  file = open(os.path.join(dataset_directory, 't10k-labels-idx1-ubyte'))
-  loaded = np.fromfile(file=file, dtype=np.uint8)
-  Y_test = loaded[8:].reshape((10000)).astype(np.float)
-
-  X_train = tf.convert_to_tensor(X_train / 255., tf.float32)
-  Y_train = tf.one_hot(Y_train, depth=10, axis=1, dtype=tf.float32)
-  Y_test = tf.one_hot(Y_test, depth=10, axis=1, dtype=tf.float32)
-
-  return X_train, Y_train
+  return X_train, Y_train, X_test, Y_test
 
 
 def get_batch_data(batch_size):
-  X_train, Y_train = load_mnist()
+  X_train, Y_train, X_test, Y_test = load_mnist()
 
   data_queues = tf.train.slice_input_producer([X_train, Y_train])
 
@@ -222,10 +208,12 @@ def train():
   tf.reshape(v_length, shape=(batch_size, 10))
 
   # [batch_size, 10] -> [batch_size, 10]
-  left = tf.square(tf.maximum(0., m_plus - v_length))
+  left = tf.square(tf.maximum(0.0, m_plus - v_length))
+  left = tf.to_double(left)
 
   # [batch_size, 10] -> [batch_size, 10]
-  right = tf.square(tf.maximum(0., v_length - m_minus))
+  right = tf.square(tf.maximum(0.0, v_length - m_minus))
+  right = tf.to_double(right)
 
   # Margin loss
   # [batch_size, 10] -> [batch_size, 10]
@@ -243,7 +231,6 @@ def train():
 
   epoch_number = 1
   with tf.Session() as sess:
-    print("Run the init op")
     sess.run(init_op)
 
     num_batch = int(60000 / batch_size)
