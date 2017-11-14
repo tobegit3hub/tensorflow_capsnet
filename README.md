@@ -15,3 +15,4 @@ You can train the CapsNet model with commands.
 ## Reference
 
 * [CapsNet-Tensorflow](https://github.com/naturomics/CapsNet-Tensorflow)
+* [CapsNet-Keras](https://github.com/XifengGuo/CapsNet-Keras)

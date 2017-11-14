@@ -144,41 +144,30 @@ def load_mnist():
   return X_train, Y_train, X_test, Y_test
 
 
-def get_batch_data(batch_size):
-  X_train, Y_train, X_test, Y_test = load_mnist()
-
-  data_queues = tf.train.slice_input_producer([X_train, Y_train])
-
-  X, Y = tf.train.shuffle_batch(
-      data_queues,
-      batch_size=batch_size,
-      capacity=batch_size * 64,
-      min_after_dequeue=batch_size * 32,
-      allow_smaller_final_batch=False)
-
-  return (X, Y)
-
-
 def train():
+  epoch_number = 1
   batch_size = 8
   m_plus = 0.9
   m_minus = 0.1
   lambda_value = 0.5
   epsilon = 1e-10
+  step_to_validate = 10
 
-  # Shapes are [batch, 28, 28, 1] and [batch, 10]
-  X_train, Y_train = get_batch_data(batch_size)
-  """
-  X_train, Y_train = load_mnist()
-  X_train = tf.reshape(X_train[0], shape=(1, 28, 28, 1))
-  Y_train = tf.reshape(Y_train[0], shape=(1, 10))
-  """
+  # Shapes are [60000, 28, 28, 1], [60000, 10], [10000, 28, 28, 1], [10000, 10]
+  X_train, Y_train, X_test, Y_test = load_mnist()
+
+  x_placeholder = tf.placeholder(tf.float32, [None, 28, 28, 1])
+  y_placeholder = tf.placeholder(tf.float32, [None, 10])
 
   with tf.variable_scope("Conv1"):
     # 卷积神经网络，filter kernel为9*9, filter个数为256, stipe为1，padding为0
     # [batch_size, 28, 28, 1] -> [batch_size, 20, 20, 256]
     layer = tf.contrib.layers.conv2d(
-        X_train, num_outputs=256, kernel_size=9, stride=1, padding="VALID")
+        x_placeholder,
+        num_outputs=256,
+        kernel_size=9,
+        stride=1,
+        padding="VALID")
 
     with tf.variable_scope("PrimaryCaps"):
       # 做了8次卷积神经网络，filter kernel为9*9, filter个数为32, strip为2, padding为0
@@ -209,15 +198,13 @@ def train():
 
   # [batch_size, 10] -> [batch_size, 10]
   left = tf.square(tf.maximum(0.0, m_plus - v_length))
-  left = tf.to_double(left)
 
   # [batch_size, 10] -> [batch_size, 10]
   right = tf.square(tf.maximum(0.0, v_length - m_minus))
-  right = tf.to_double(right)
 
-  # Margin loss
   # [batch_size, 10] -> [batch_size, 10]
-  loss_vector = Y_train * left + lambda_value * (1 - Y_train) * right
+  loss_vector = y_placeholder * left + lambda_value * (
+      1 - y_placeholder) * right
 
   # [batch_size, 10] -> [batch_size] -> []
   loss = tf.reduce_mean(tf.reduce_sum(loss_vector, axis=1))
@@ -226,36 +213,53 @@ def train():
   global_step = tf.Variable(0, name='global_step', trainable=False)
   train_op = optimizer.minimize(loss, global_step=global_step)
 
+  #prediction_softmax_op = v_length
+  prediction_op = tf.argmax(v_length, 1)
+  int_y_placeholder = tf.to_int64(y_placeholder)
+  correction_op = tf.equal(prediction_op, int_y_placeholder)
+  accuracy_op = tf.reduce_mean(tf.cast(correction_op, tf.float32))
+
   init_op = tf.global_variables_initializer()
   tf.summary.scalar('loss', loss)
 
-  epoch_number = 1
   with tf.Session() as sess:
     sess.run(init_op)
 
-    num_batch = int(60000 / batch_size)
-    """
+    batch_number = int(60000 / batch_size)
+    print(len(X_train))
+
     for epoch_index in range(epoch_number):
-      for step in range(num_batch):
-        _, loss_value = sess.run([train_op, loss])
-        print("Epoch: {}, step, {}, loss: {}".format(epoch_index, step, loss_value))
-    """
+      for batch_index in range(batch_number):
 
-    coord = tf.train.Coordinator()
-    threads = tf.train.start_queue_runners(coord=coord, sess=sess)
+        batch_start_index = batch_index * batch_size
+        batch_X_train = X_train[batch_start_index:
+                                batch_start_index + batch_size]
+        batch_Y_train = Y_train[batch_start_index:
+                                batch_start_index + batch_size]
+        feed_dict = {
+            x_placeholder: batch_X_train,
+            y_placeholder: batch_Y_train
+        }
 
-    try:
-      while not coord.should_stop():
-        for epoch_index in range(epoch_number):
-          for step in range(num_batch):
-            _, loss_value = sess.run([train_op, loss])
-            print("Epoch: {}, step, {}, loss: {}".format(
-                epoch_index, step, loss_value))
-    except tf.errors.OutOfRangeError:
-      exit(0)
-    finally:
-      coord.request_stop()
-      coord.join(threads)
+        _, loss_value = sess.run([train_op, loss], feed_dict=feed_dict)
+
+        print("Epoch: {}, batch start index, {}, loss: {}".format(
+            epoch_index, batch_start_index, loss_value))
+
+        if batch_index % step_to_validate == 0 and batch_index != 0:
+          feed_dict = {
+              x_placeholder: batch_X_train,
+              y_placeholder: batch_Y_train
+          }
+          train_accuracy_value = sess.run(accuracy_op, feed_dict=feed_dict)
+
+          feed_dict = {
+              x_placeholder: X_test[0:batch_size],
+              y_placeholder: Y_test[0:batch_size]
+          }
+          validate_accuracy_value = sess.run(accuracy_op, feed_dict=feed_dict)
+          print("Train accuracy: {}%, validate accuracy: {}%".format(
+              train_accuracy_value * 100, validate_accuracy_value * 100))
 
 
 def main():

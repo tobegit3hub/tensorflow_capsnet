@@ -22,3 +22,18 @@ def load_mnist():
   Y_test = tf.one_hot(Y_test, depth=10, axis=1, dtype=tf.float32)
 
   return X_train, Y_train, X_test, Y_test
+
+
+def get_batch_data(batch_size):
+  X_train, Y_train, X_test, Y_test = load_mnist()
+
+  data_queues = tf.train.slice_input_producer([X_train, Y_train])
+
+  X, Y = tf.train.shuffle_batch(
+      data_queues,
+      batch_size=batch_size,
+      capacity=batch_size * 64,
+      min_after_dequeue=batch_size * 32,
+      allow_smaller_final_batch=False)
+
+  return (X, Y)
