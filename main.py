@@ -133,7 +133,7 @@ def squash(input):
 
 
 def load_mnist():
-  dataset_directory = "./data/MNIST"
+  dataset_directory = "./MNIST"
 
   file = open(os.path.join(dataset_directory, 'train-images-idx3-ubyte'))
   loaded = np.fromfile(file=file, dtype=np.uint8)
