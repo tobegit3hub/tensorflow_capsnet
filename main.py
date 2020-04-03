@@ -225,8 +225,7 @@ def train():
   with tf.Session() as sess:
     sess.run(init_op)
 
-    batch_number = int(60000 / batch_size)
-    print(len(X_train))
+    batch_number = int(len(X_train) / batch_size)
 
     for epoch_index in range(epoch_number):
       for batch_index in range(batch_number):
@@ -258,6 +257,7 @@ def train():
               y_placeholder: Y_test[0:batch_size]
           }
           validate_accuracy_value = sess.run(accuracy_op, feed_dict=feed_dict)
+
           print("Train accuracy: {}%, validate accuracy: {}%".format(
               train_accuracy_value * 100, validate_accuracy_value * 100))
 
